@@ -1,0 +1,63 @@
+name: Deploy Abadis redesign (from ShushtarWolf/abadis-med-website-redesign)
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Deploy even if upstream hasn't changed"
+        type: boolean
+        default: true
+  schedule:
+    - cron: "*/5 * * * *"
+  push:
+    branches: [main]
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+env:
+  UPSTREAM: ShushtarWolf/abadis-med-website-redesign
+  UPSTREAM_REF: main
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.c.outputs.sha }}
+      changed: ${{ steps.c.outputs.changed }}
+    steps:
+      - id: c
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+        run: |
+          sha=$(gh api "repos/$UPSTREAM/commits/$UPSTREAM_REF" --jq .sha)
+          live=$(curl -fsS "$PAGES_URL/deployed-sha.txt?t=$(date +%s)" 2>/dev/null | tr -d '[:space:]' || true)
+          echo "upstream=$sha live=${live:-none}"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          if [ "$sha" != "$live" ] || [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.force }}" = "true" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"; echo "No upstream change — skipping deploy."
+          fi
+  deploy:
+    needs: check
+    if: needs.check.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.UPSTREAM }}
+          ref: ${{ needs.check.outputs.sha }}
+          sparse-checkout: site
+      - run: echo "${{ needs.check.outputs.sha }}" > site/deployed-sha.txt
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
