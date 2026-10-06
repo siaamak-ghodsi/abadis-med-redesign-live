@@ -1,4 +1,4 @@
-name: Deploy Abadis redesign (from ShushtarWolf/abadis-med-website-redesign)
+name: Deploy Siamak preview (ShushtarWolf/abadis-med-website-redesign @ siamak/redesign)
 on:
   workflow_dispatch:
     inputs:
@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: false
 env:
   UPSTREAM: ShushtarWolf/abadis-med-website-redesign
-  UPSTREAM_REF: main
+  UPSTREAM_REF: siamak/redesign   # Siamak's branch only — never main
 jobs:
   check:
     runs-on: ubuntu-latest
